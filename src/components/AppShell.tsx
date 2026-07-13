@@ -68,7 +68,7 @@ function LanguageSwitcher({ compact = false }: { compact?: boolean }) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -4, scale: 0.98 }}
             transition={{ duration: 0.15 }}
-            className="absolute z-50 mt-2 w-56 card !rounded-xl p-1.5 shadow-lg left-0"
+            className={`absolute z-50 mt-2 w-56 card !rounded-xl p-1.5 shadow-lg ${compact ? "right-0" : "left-0"}`}
           >
             {LANGUAGES.map((l) => (
               <li key={l.id}>
@@ -133,7 +133,10 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* ---------- main ---------- */}
       <div className="flex-1 min-w-0 flex flex-col">
         {/* mobile top bar */}
-        <header className="md:hidden sticky top-0 z-40 flex items-center justify-between gap-3 px-4 py-3 bg-bg/80 backdrop-blur-xl border-b border-line">
+        <header
+          className="md:hidden sticky top-0 z-40 flex items-center justify-between gap-3 px-4 py-3 bg-bg/80 backdrop-blur-xl border-b border-line"
+          style={{ paddingTop: "calc(env(safe-area-inset-top) + 0.75rem)" }}
+        >
           <Link href="/" className="flex items-center gap-2">
             <span className="w-8 h-8 rounded-lg bg-accent text-white grid place-items-center font-bold shadow-sm">P</span>
             <span className="font-semibold tracking-tight">PolyVault</span>
