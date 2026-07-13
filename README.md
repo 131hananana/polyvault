@@ -1,36 +1,37 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PolyVault 🔮
 
-## Getting Started
+A private, offline-first multilingual vocabulary vault — spaced repetition, AI tutoring, and calm, focused design. Built for one learner: you.
 
-First, run the development server:
+## Features
+
+- **5 independent language libraries** — 🇫🇷 French, 🇪🇸 Spanish, 🇲🇦 Moroccan Darija, 🇸🇦 Arabic, 🇺🇸 Professional English — each with its own dashboard, queue, streak, and statistics.
+- **SM-2 spaced repetition** with Again / Hard / Good / Easy grading, learning steps, lapse tracking, and interval previews.
+- **12 quiz modes**: flashcards, multiple choice, typing, listening, pronunciation (speech-recognition scored), reverse translation, fill-in-the-blank, sentence completion, match pairs, speed review, timed challenge, and mistake review — plus mixed daily/weekly/monthly review sets.
+- **AI Personal Tutor** — answer wrong and the tutor explains *why*, contrasts confusable vocabulary, gives memory techniques, then drills 3–5 personalized follow-up exercises until you demonstrate mastery (missed drills re-queue automatically).
+- **AI Explanation Mode** on every card — what the word really means, when natives (don't) use it, business/travel/daily situations, learner traps.
+- **AI Deck Generator & Importer** — generate themed decks by topic/CEFR/scenario, or extract vocabulary cards from pasted text, TXT/Markdown/PDF files, and URLs.
+- **Rich cards**: native script, IPA, romanization, gender, plurals, conjugations, collocations, synonyms/antonyms, memory tips, common mistakes, cultural/grammar/usage notes, register, and 3+ annotated example sentences with native + slow audio.
+- **Notebook** for quick capture of words/phrases/idioms/grammar, promotable to full cards.
+- **Statistics**: retention, accuracy, streaks, study time, weakest/strongest topics, activity heatmap, achievements, XP and levels.
+- **Installable PWA**, fully offline: all data lives in IndexedDB on your device.
+
+## Getting started
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev        # http://localhost:3000
+npm run build && npm start   # production
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## AI features (optional)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The app is fully usable offline with a built-in deterministic tutor. To unlock Claude-powered tutoring, deck generation, and imports, either:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- set `ANTHROPIC_API_KEY` in `.env.local` (see `.env.example`), or
+- paste your key in **Settings → AI Tutor** (stored only in your browser's IndexedDB).
 
-## Learn More
+## Architecture notes
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Local-first by design.** IndexedDB (Dexie) is the single source of truth, so the app works with zero connectivity and zero accounts. A sync backend (e.g. Supabase/Postgres) can be layered on later by replicating the Dexie tables; for a single private user, local storage is simpler, faster, and more private.
+- `src/lib/srs/sm2.ts` — the scheduling algorithm; `src/lib/db.ts` — storage + queue selection; `src/lib/ai/` — Claude client with offline fallback; `src/components/study/` — the session engine, question renderers, and tutor panel.
+- The service worker (`public/sw.js`) caches the app shell for offline navigation; API calls are network-only with a client-side fallback.
