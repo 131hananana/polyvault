@@ -42,10 +42,47 @@ function pickVoice(lang: string): SpeechSynthesisVoice | undefined {
 // Chrome garbage-collects in-flight utterances (onend never fires) unless we hold a reference.
 let current: SpeechSynthesisUtterance | null = null;
 
-/** Resolves `true` once speech finished, `false` if the browser never started speaking. */
-export function speak(text: string, lang: string, rate = 1): Promise<boolean> {
+/* ------------------------------------------------------------
+   Cloud voices for languages devices can't speak natively.
+   Moroccan Darija has no OS/browser voice anywhere, so it goes
+   through /api/tts (Azure ar-MA neural voice). If the route
+   isn't configured or fails, we fall back to device voices.
+   ------------------------------------------------------------ */
+const CLOUD_VOICE_LANGS = new Set(["ar-MA"]);
+let cloudTts: "unknown" | "ok" | "off" = "unknown";
+let currentAudio: HTMLAudioElement | null = null;
+
+function playCloud(text: string, lang: string, slow: boolean): Promise<boolean> {
+  return new Promise((resolve) => {
+    const url = `/api/tts?lang=${encodeURIComponent(lang)}&slow=${slow ? 1 : 0}&text=${encodeURIComponent(text)}`;
+    currentAudio?.pause();
+    window.speechSynthesis?.cancel();
+    const audio = new Audio(url);
+    currentAudio = audio;
+    let started = false;
+    audio.onplaying = () => { started = true; cloudTts = "ok"; };
+    audio.onended = () => resolve(true);
+    audio.onerror = () => {
+      // never worked this session (e.g. no Azure key) → stop trying
+      if (!started && cloudTts !== "ok") cloudTts = "off";
+      resolve(false);
+    };
+    audio.play().catch(() => resolve(false));
+  });
+}
+
+/** Resolves `true` once speech finished, `false` if nothing could be played. */
+export async function speak(text: string, lang: string, rate = 1): Promise<boolean> {
+  if (typeof window !== "undefined" && CLOUD_VOICE_LANGS.has(lang) && cloudTts !== "off") {
+    if (await playCloud(text, lang, rate < 0.8)) return true;
+  }
+  return speakDevice(text, lang, rate);
+}
+
+function speakDevice(text: string, lang: string, rate = 1): Promise<boolean> {
   return new Promise((resolve) => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return resolve(false);
+    currentAudio?.pause();
     const synth = window.speechSynthesis;
     const u = new SpeechSynthesisUtterance(text);
     const voice = pickVoice(lang);
