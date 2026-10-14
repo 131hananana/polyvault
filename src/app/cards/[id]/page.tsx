@@ -13,6 +13,7 @@ import { db } from "@/lib/db";
 import { languageById, WordExplanation } from "@/lib/types";
 import { getWordExplanation } from "@/lib/ai/client";
 import { AudioButton } from "@/components/AudioButton";
+import { ReadAs, ExampleLine } from "@/components/ReadAs";
 import { EmptyState } from "@/components/ui";
 
 export default function CardPage({ params }: { params: Promise<{ id: string }> }) {
@@ -52,8 +53,6 @@ export default function CardPage({ params }: { params: Promise<{ id: string }> }
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 dir={dir} className="text-4xl font-bold tracking-tight native-script">{card.nativeScript || card.word}</h1>
-            {card.nativeScript && card.nativeScript !== card.word && <div className="text-lg text-ink-muted mt-1">{card.word}</div>}
-            {card.romanization && <div className="text-ink-muted mt-1">{card.romanization}</div>}
             <div className="text-xl mt-2 font-medium">{card.translation}</div>
           </div>
           <div className="flex flex-col items-center gap-1">
@@ -62,8 +61,9 @@ export default function CardPage({ params }: { params: Promise<{ id: string }> }
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-x-6 gap-y-1 mt-4 text-sm text-ink-muted">
-          {card.pronunciation && <span>🗣 {card.pronunciation}</span>}
+        <div className="mt-4"><ReadAs card={card} audio={false} /></div>
+
+        <div className="flex flex-wrap gap-x-6 gap-y-1 mt-3 text-sm text-ink-muted">
           {card.ipa && <span className="font-mono">{card.ipa}</span>}
           {card.gender && card.gender !== "none" && <span>{card.gender === "masculine" ? "♂ masculine" : card.gender === "feminine" ? "♀ feminine" : card.gender}</span>}
           {card.plural && <span>plural: <b dir={dir}>{card.plural}</b></span>}
@@ -83,11 +83,7 @@ export default function CardPage({ params }: { params: Promise<{ id: string }> }
         <div className="grid gap-3">
           {card.examples.map((ex, i) => (
             <div key={i} className="bg-surface-2 rounded-xl p-4">
-              <div className="flex items-start justify-between gap-2">
-                <p dir={dir} className="font-semibold native-script text-[15px]">{ex.native}</p>
-                <AudioButton text={ex.native} lang={lang.speechTag} className="shrink-0 -mt-1" />
-              </div>
-              <p className="text-sm text-ink-muted italic mt-1">{ex.translation}</p>
+              <ExampleLine {...ex} languageId={card.languageId} />
               {ex.explanation && <p className="text-xs mt-2"><b className="text-ink-muted">How it works:</b> {ex.explanation}</p>}
               {ex.whyUseful && <p className="text-xs mt-1 text-accent">✦ {ex.whyUseful}</p>}
             </div>

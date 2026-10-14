@@ -13,9 +13,15 @@ import {
 } from "lucide-react";
 import { useApp } from "@/components/Providers";
 import { db } from "@/lib/db";
-import { VocabCard, QuizMode, languageById, DAY_MS } from "@/lib/types";
+import { VocabCard, QuizMode, languageById, DAY_MS, goalById } from "@/lib/types";
 import { Session } from "@/components/study/Session";
-import { EmptyState, SectionTitle } from "@/components/ui";
+import { DailyLesson } from "@/components/study/lesson/DailyLesson";
+import { buildDailyLesson, DailyLessonPlan } from "@/lib/lesson";
+import { goalContext, goalStateFor, orderNewCardsForGoal } from "@/lib/goals";
+import { GoalOnboarding, GoalSwitcher } from "@/components/goals/Goals";
+import { TrackCards } from "@/components/study/TrackCards";
+import { LANGUAGES } from "@/lib/types";
+import { EmptyState, SectionTitle, PageHero } from "@/components/ui";
 
 interface ModeDef {
   id: QuizMode | "daily" | "weekly" | "monthly";
@@ -41,14 +47,14 @@ const QUIZ_MODES: ModeDef[] = [
 ];
 
 const REVIEW_SETS: ModeDef[] = [
-  { id: "daily", label: "Daily review", desc: "Today's due + new cards, mixed drills", icon: CalendarCheck, mixed: true },
+  { id: "daily", label: "Daily lesson", desc: "Learn new words 3×, then 5 focused steps", icon: CalendarCheck },
   { id: "weekly", label: "Weekly review", desc: "Everything you studied this week", icon: CalendarRange, mixed: true },
   { id: "monthly", label: "Monthly review", desc: "Long-term consolidation pass", icon: CalendarClock, mixed: true },
   { id: "mistake-review", label: "Mistake review", desc: "Re-drill your recent errors", icon: Bug, mixed: true },
 ];
 
 function StudyInner() {
-  const { settings, ready } = useApp();
+  const { settings, ready, setLanguage } = useApp();
   const router = useRouter();
   const params = useSearchParams();
   const modeParam = params.get("mode");
@@ -56,12 +62,30 @@ function StudyInner() {
   const lang = languageById(settings.activeLanguage);
 
   const [queue, setQueue] = useState<VocabCard[] | null>(null);
+  const [lesson, setLesson] = useState<DailyLessonPlan | null>(null);
   const def = [...QUIZ_MODES, ...REVIEW_SETS].find((m) => m.id === modeParam);
+  const isLesson = def?.id === "daily";
 
   useEffect(() => {
-    if (!ready || !def) { setQueue(null); return; }
+    if (!ready || !def) { setQueue(null); setLesson(null); return; }
+    if (def.id === "daily") { setQueue(null); buildDailyLesson(settings.activeLanguage, deckId).then(setLesson); return; }
+    setLesson(null);
     buildQueue(def, settings.activeLanguage, settings.newCardsPerDay, deckId).then(setQueue);
   }, [ready, modeParam, settings.activeLanguage, settings.newCardsPerDay, deckId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (isLesson && lesson) {
+    if (lesson.words.length === 0) {
+      return (
+        <EmptyState
+          emoji="🌤️"
+          title="No lesson right now"
+          sub={`You've learned every open ${lang.name} word and nothing is due. Come back tomorrow, unlock another goal, or create a deck.`}
+          action={<button className="btn btn-primary" onClick={() => router.push("/study")}>Back to study</button>}
+        />
+      );
+    }
+    return <DailyLesson key={settings.activeLanguage} plan={lesson} onExit={() => router.push("/study")} />;
+  }
 
   if (def && queue) {
     if (queue.length === 0) {
@@ -89,8 +113,29 @@ function StudyInner() {
 
   return (
     <div className="fade-up">
-      <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Study {lang.flag}</h1>
-      <p className="text-sm text-ink-muted mt-1">Every mode feeds the same SM-2 schedule — mistakes summon your AI tutor.</p>
+      <PageHero pattern="zigzag" sticker={lang.flag} title="Study time" sub="Pick the language you want to learn, then start a lesson." action={<GoalSwitcher />} />
+
+      {/* language picker — the only place (with the top-bar switcher) where the study language is chosen */}
+      <div className="flex gap-2 overflow-x-auto pb-1 mt-3 -mx-1 px-1">
+        {LANGUAGES.map((l) => {
+          const active = l.id === settings.activeLanguage;
+          return (
+            <button key={l.id} onClick={() => setLanguage(l.id)}
+              className={`shrink-0 flex items-center gap-2 rounded-2xl border px-3.5 py-2.5 transition-all
+                ${active ? "bg-accent text-white border-transparent shadow-md" : "bg-surface border-line hover:bg-surface-2"}`}>
+              <span className="text-xl leading-none">{l.flag}</span>
+              <span className="text-sm font-semibold whitespace-nowrap">{l.name}</span>
+              {settings.goals?.[l.id] && <span className="text-xs">{goalById(settings.goals[l.id]!.focus).emoji}</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {!goalStateFor(settings, settings.activeLanguage) ? (
+        <div className="mt-4"><GoalOnboarding key={settings.activeLanguage} /></div>
+      ) : (
+      <>
+      <div className="mt-3"><TrackCards /></div>
 
       <SectionTitle>Review sets</SectionTitle>
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -101,6 +146,8 @@ function StudyInner() {
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {QUIZ_MODES.map((m) => <ModeCard key={m.id} def={m} onClick={() => router.push(`/study?mode=${m.id}`)} />)}
       </div>
+      </>
+      )}
     </div>
   );
 }
@@ -130,7 +177,9 @@ async function buildQueue(
 
   const due = cards.filter((c) => c.srs.stage !== "new" && c.srs.dueAt <= now)
     .sort((a, b) => a.srs.dueAt - b.srs.dueAt);
-  const fresh = cards.filter((c) => c.srs.stage === "new").slice(0, newPerDay);
+  const [settingsNow, decks] = await Promise.all([db.settings.get("app"), db.decks.where("languageId").equals(languageId).toArray()]);
+  const ctx = goalContext(decks, settingsNow ? goalStateFor(settingsNow, languageId as VocabCard["languageId"]) : undefined);
+  const fresh = orderNewCardsForGoal(cards.filter((c) => c.srs.stage === "new"), ctx).slice(0, newPerDay);
 
   const shuffle = <T,>(a: T[]) => {
     const arr = [...a];

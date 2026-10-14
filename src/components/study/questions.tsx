@@ -11,6 +11,7 @@ import { motion } from "framer-motion";
 import { Mic, Volume2, Eye } from "lucide-react";
 import { VocabCard, languageById } from "@/lib/types";
 import { AudioButton } from "@/components/AudioButton";
+import { ReadAs, ExampleLine } from "@/components/ReadAs";
 import { speak } from "@/lib/audio";
 import { recognize, isRecognitionSupported } from "@/lib/audio";
 
@@ -27,7 +28,7 @@ const headword = (c: VocabCard) =>
 const norm = (s: string) =>
   s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^\p{L}\p{N}\s]/gu, "").replace(/\s+/g, " ").trim();
 
-function pick<T>(arr: T[], n: number): T[] {
+export function pick<T>(arr: T[], n: number): T[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -44,7 +45,7 @@ export function distractorsFor(card: VocabCard, pool: VocabCard[], field: "word"
 }
 
 /* ---------- option buttons ---------- */
-function Options({ options, answer, onPick, dir }: {
+export function Options({ options, answer, onPick, dir }: {
   options: string[]; answer: string; onPick: (correct: boolean, chosen: string) => void; dir?: "rtl" | "ltr";
 }) {
   const [chosen, setChosen] = useState<string | null>(null);
@@ -66,7 +67,7 @@ function Options({ options, answer, onPick, dir }: {
                 state === "wrong" ? "!bg-bad-soft !border-bad !text-bad" :
                 "btn-outline"}`}
           >
-            <span className="w-6 h-6 rounded-lg bg-surface-2 grid place-items-center text-xs font-bold mr-1 shrink-0">{i + 1}</span>
+            <span className="w-6 h-6 rounded-lg bg-surface-2 grid place-items-center text-xs font-bold mr-1 shrink-0">{String.fromCharCode(65 + i)}</span>
             {o}
           </motion.button>
         );
@@ -129,7 +130,7 @@ export function MultipleChoiceQ({ card, pool, onAnswer }: QuestionProps) {
         <h2 dir={lang.rtl ? "rtl" : "ltr"} className="text-3xl font-bold text-center native-script">{card.nativeScript || card.word}</h2>
         <AudioButton text={card.nativeScript || card.word} lang={lang.speechTag} />
       </div>
-      {card.romanization && <p className="text-center text-ink-muted mt-1">{card.romanization}</p>}
+      <div className="mt-2"><ReadAs card={card} center audio={false} /></div>
       <Options options={options} answer={card.translation} onPick={onAnswer} />
     </div>
   );
@@ -156,7 +157,7 @@ export function TypingQ({ card, onAnswer }: QuestionProps) {
     <div>
       <p className="text-sm text-ink-muted text-center">Type the {lang.name} word for</p>
       <h2 className="text-3xl font-bold text-center mt-3">“{card.translation}”</h2>
-      {card.pronunciation && <p className="text-center text-ink-faint text-sm mt-1">{card.pronunciation}</p>}
+      {card.pronunciation && <p className="text-center text-ink-faint text-sm mt-1 read-as">🗣 {card.pronunciation}</p>}
       <TypeAnswer
         answer={headword(card)}
         acceptAlso={[card.word, card.nativeScript, card.romanization ?? ""]}
@@ -275,8 +276,8 @@ export function PronunciationQ({ card, onAnswer }: QuestionProps) {
         <AudioButton text={card.nativeScript || card.word} lang={lang.speechTag} />
         <AudioButton text={card.nativeScript || card.word} lang={lang.speechTag} slow />
       </div>
-      {card.ipa && <p className="text-ink-muted mt-1 font-mono text-sm">{card.ipa}</p>}
-      {card.romanization && <p className="text-ink-muted text-sm">{card.romanization}</p>}
+      <div className="mt-2"><ReadAs card={card} center audio={false} /></div>
+      {card.ipa && <p className="text-ink-faint mt-1 font-mono text-xs">{card.ipa}</p>}
 
       {!supported && (
         <div className="mt-6">
@@ -328,24 +329,22 @@ export function FlashcardQ({ card, revealed, onReveal }: {
   return (
     <div className="flip-scene cursor-pointer select-none" onClick={() => !revealed && onReveal()}>
       <div className={`flip-inner min-h-[300px] ${revealed ? "flipped" : ""}`}>
-        <div className="flip-face card !rounded-3xl p-8 min-h-[300px] flex flex-col items-center justify-center gap-3">
+        {/* Safari hit-tests hidden backfaces, so only the visible face may receive clicks */}
+        <div className={`flip-face card !rounded-3xl p-8 min-h-[300px] flex flex-col items-center justify-center gap-3 ${revealed ? "pointer-events-none" : ""}`}>
           <span className="pill">{card.partOfSpeech} · {card.cefr}</span>
           <h2 dir={lang.rtl ? "rtl" : "ltr"} className="text-4xl font-bold text-center native-script">{card.nativeScript || card.word}</h2>
-          {card.romanization && <p className="text-ink-muted">{card.romanization}</p>}
-          <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-            <AudioButton text={card.nativeScript || card.word} lang={lang.speechTag} />
-            <AudioButton text={card.nativeScript || card.word} lang={lang.speechTag} slow />
-          </div>
+          <div onClick={(e) => e.stopPropagation()}><ReadAs card={card} center /></div>
           <p className="text-xs text-ink-faint flex items-center gap-1 mt-2"><Eye size={12} /> tap to reveal</p>
         </div>
 
-        <div className="flip-back flip-face card !rounded-3xl p-8 min-h-[300px] flex flex-col items-center justify-center gap-2 overflow-y-auto">
+        <div className={`flip-back flip-face card !rounded-3xl p-8 min-h-[300px] flex flex-col items-center justify-center gap-2 overflow-y-auto ${revealed ? "" : "pointer-events-none"}`}>
           <h3 className="text-2xl font-bold text-center">{card.translation}</h3>
-          {card.ipa && <p className="text-ink-muted font-mono text-sm">{card.ipa}</p>}
+          <div className="text-center text-ink-muted native-script" dir={lang.rtl ? "rtl" : "ltr"}>{card.nativeScript || card.word}</div>
+          <ReadAs card={card} center compact />
+          {card.ipa && <p className="text-ink-faint font-mono text-xs">{card.ipa}</p>}
           {card.examples[0] && (
-            <div className="text-center mt-3 text-sm">
-              <p dir={lang.rtl ? "rtl" : "ltr"} className="font-medium native-script">{card.examples[0].native}</p>
-              <p className="text-ink-muted italic mt-1">{card.examples[0].translation}</p>
+            <div className="mt-3 text-sm">
+              <ExampleLine {...card.examples[0]} languageId={card.languageId} center />
             </div>
           )}
           {card.memoryTips && <p className="text-xs text-ink-muted bg-surface-2 rounded-xl px-3 py-2 mt-3 max-w-sm text-center">💡 {card.memoryTips}</p>}

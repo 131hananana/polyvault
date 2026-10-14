@@ -7,7 +7,7 @@ import { useApp } from "@/components/Providers";
 import { computeStats, LanguageStats, levelFromXp, ACHIEVEMENTS } from "@/lib/stats";
 import { db } from "@/lib/db";
 import { languageById } from "@/lib/types";
-import { StatTile, SectionTitle, Heatmap, Bar } from "@/components/ui";
+import { StatTile, SectionTitle, Heatmap, Bar, PageHero } from "@/components/ui";
 
 export default function StatsPage() {
   const { settings, ready } = useApp();
@@ -28,8 +28,7 @@ export default function StatsPage() {
 
   return (
     <div className="fade-up">
-      <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Statistics {lang.flag}</h1>
-      <p className="text-sm text-ink-muted mt-1">{lang.name} · Level {level.level} · {(profile?.xp ?? 0).toLocaleString()} XP total</p>
+      <PageHero pattern="plus" sticker="📈" title={<>Statistics {lang.flag}</>} sub={<>{lang.name} · Level {level.level} · {(profile?.xp ?? 0).toLocaleString()} XP total</>} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6">
         <StatTile label="Retention rate" value={`${stats.retention}%`} sub="last 30 days" icon={<Brain size={14} />} accent />

@@ -6,8 +6,13 @@ import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import {
   Home, Layers, BarChart3, Settings, Search, NotebookPen,
-  Sparkles, Sun, Moon, GraduationCap, Import, ChevronDown,
+  Sparkles, Sun, Moon, GraduationCap, Import, ChevronDown, UserRound, Users,
 } from "lucide-react";
+import { useLiveQuery } from "dexie-react-hooks";
+import { db } from "@/lib/db";
+import { Avatar } from "./account/ProfileView";
+import { GoalOnboarding } from "./goals/Goals";
+import { goalStateFor } from "@/lib/goals";
 import { LANGUAGES, languageById } from "@/lib/types";
 import { useApp } from "./Providers";
 import { AnimatePresence, motion } from "framer-motion";
@@ -15,16 +20,18 @@ import { AnimatePresence, motion } from "framer-motion";
 const NAV = [
   { href: "/", label: "Home", icon: Home },
   { href: "/study", label: "Study", icon: GraduationCap },
+  { href: "/connect", label: "Connect", icon: Users },
   { href: "/decks", label: "Decks", icon: Layers },
   { href: "/search", label: "Search", icon: Search },
   { href: "/notebook", label: "Notebook", icon: NotebookPen },
   { href: "/generate", label: "AI Decks", icon: Sparkles },
   { href: "/import", label: "Import", icon: Import },
   { href: "/stats", label: "Statistics", icon: BarChart3 },
+  { href: "/account", label: "Account", icon: UserRound },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-const MOBILE_NAV = NAV.filter((n) => ["/", "/study", "/decks", "/search", "/stats"].includes(n.href));
+const MOBILE_NAV = NAV.filter((n) => ["/", "/study", "/connect", "/decks", "/stats"].includes(n.href));
 
 function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
@@ -92,24 +99,37 @@ function LanguageSwitcher({ compact = false }: { compact?: boolean }) {
   );
 }
 
+function AccountButton() {
+  const account = useLiveQuery(() => db.account.get("me"), []);
+  return (
+    <Link href="/account" aria-label="Account" className="rounded-full">
+      {account
+        ? <Avatar account={account} size={34} />
+        : <span className="w-[34px] h-[34px] rounded-full bg-surface-2 grid place-items-center text-ink-muted"><UserRound size={17} /></span>}
+    </Link>
+  );
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { ready } = useApp();
+  const { ready, settings } = useApp();
+  // deck browsing needs a learning goal for the language (Study shows its own goal picker)
+  const needsGoal = ready && !goalStateFor(settings, settings.activeLanguage) && pathname.startsWith("/decks");
 
   return (
     <div className="min-h-dvh flex">
       {/* ---------- desktop sidebar ---------- */}
       <aside className="hidden md:flex flex-col w-60 shrink-0 border-r border-line bg-surface/60 backdrop-blur-xl sticky top-0 h-dvh px-4 py-6 gap-6">
         <Link href="/" className="flex items-center gap-2.5 px-2">
-          <span className="w-9 h-9 rounded-xl bg-accent text-white grid place-items-center font-bold text-lg shadow-md">P</span>
-          <span className="font-semibold text-[17px] tracking-tight">PolyVault</span>
+          <span className="w-9 h-9 rounded-xl logo-tile grid place-items-center font-bold text-lg shadow-md font-display">P</span>
+          <span className="font-semibold text-[19px] font-display">PolyVault</span>
         </Link>
 
         <LanguageSwitcher />
 
         <nav className="flex flex-col gap-0.5 flex-1">
           {NAV.map(({ href, label, icon: Icon }) => {
-            const active = pathname === href;
+            const active = href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/");
             return (
               <Link
                 key={href}
@@ -138,17 +158,18 @@ export function AppShell({ children }: { children: ReactNode }) {
           style={{ paddingTop: "calc(env(safe-area-inset-top) + 0.75rem)" }}
         >
           <Link href="/" className="flex items-center gap-2">
-            <span className="w-8 h-8 rounded-lg bg-accent text-white grid place-items-center font-bold shadow-sm">P</span>
-            <span className="font-semibold tracking-tight">PolyVault</span>
+            <span className="w-8 h-8 rounded-lg logo-tile grid place-items-center font-bold shadow-sm font-display">P</span>
+            <span className="font-semibold text-[17px] font-display">PolyVault</span>
           </Link>
           <div className="flex items-center gap-1.5">
             <LanguageSwitcher compact />
             <ThemeToggle />
+            <AccountButton />
           </div>
         </header>
 
         <main className="flex-1 px-4 md:px-8 py-6 md:py-8 pb-24 md:pb-8 max-w-6xl w-full mx-auto">
-          {ready ? children : (
+          {ready ? (needsGoal ? <GoalOnboarding key={settings.activeLanguage} /> : children) : (
             <div className="grid gap-4 mt-4" aria-busy>
               {[...Array(3)].map((_, i) => (
                 <div key={i} className="card h-28 animate-pulse bg-surface-2 border-none" />

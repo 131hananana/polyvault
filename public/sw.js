@@ -3,10 +3,10 @@
    Data lives in IndexedDB, so caching the shell + assets is
    enough for the whole app to work with no connection.
    ============================================================ */
-const VERSION = "pv-v1";
+const VERSION = "pv-v5";
 const SHELL_CACHE = `shell-${VERSION}`;
 const ASSET_CACHE = `assets-${VERSION}`;
-const SHELL_ROUTES = ["/", "/study", "/decks", "/search", "/notebook", "/stats", "/settings", "/generate", "/import"];
+const SHELL_ROUTES = ["/", "/study", "/decks", "/search", "/notebook", "/stats", "/settings", "/generate", "/import", "/account", "/account/edit", "/account/preview", "/account/verify", "/connect"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

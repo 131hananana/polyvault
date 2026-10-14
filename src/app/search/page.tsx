@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Search as SearchIcon } from "lucide-react";
 import { searchCards } from "@/lib/db";
 import { VocabCard, LANGUAGES, languageById, LanguageId } from "@/lib/types";
-import { EmptyState } from "@/components/ui";
+import { EmptyState, PageHero } from "@/components/ui";
 
 export default function SearchPage() {
   const [query, setQuery] = useState("");
@@ -33,8 +33,7 @@ export default function SearchPage() {
 
   return (
     <div className="fade-up max-w-2xl mx-auto">
-      <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Search everywhere</h1>
-      <p className="text-sm text-ink-muted mt-1">One query across all five language libraries.</p>
+      <PageHero pattern="waves" sticker="🔎" title="Search everywhere" sub="One query across every language library." />
 
       <div className="relative mt-5">
         <SearchIcon size={17} className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-faint" />

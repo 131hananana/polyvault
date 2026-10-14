@@ -111,3 +111,40 @@ export async function extractCardsFromText(opts: {
   if (!res?.cards?.length) return null;
   return res.cards.filter((c) => c.word && c.translation).map((c) => hydrate(c, opts.languageId, opts.deckId));
 }
+
+/* ------------------------------------------------------------
+   Connect — AI practice partner
+   ------------------------------------------------------------ */
+export interface PartnerTurn { role: "user" | "partner"; text: string }
+export interface PartnerReply {
+  reply: string;
+  translation: string;
+  tip: string | null;
+  source: "claude" | "offline";
+}
+
+export async function getPartnerReply(opts: {
+  languageId: LanguageId; level: string; goal?: string; explainIn: string; history: PartnerTurn[];
+}): Promise<PartnerReply> {
+  const lang = languageById(opts.languageId);
+  const ai = await callAI<{ reply: string | null; translation?: string; tip?: string | null; refused?: boolean }>("chat", {
+    language: lang.name, level: opts.level, goal: opts.goal, explainIn: opts.explainIn, history: opts.history,
+  });
+  if (ai?.reply) return { reply: ai.reply, translation: ai.translation ?? "", tip: ai.tip ?? null, source: "claude" };
+  return offlinePartnerReply(opts.languageId, opts.history.length);
+}
+
+/** Without a key or connection, the partner speaks in phrasebook sentences from the learner's own vault. */
+async function offlinePartnerReply(languageId: LanguageId, turn: number): Promise<PartnerReply> {
+  const { db } = await import("@/lib/db");
+  const cards = (await db.cards.where("languageId").equals(languageId).toArray()).filter((c) => c.examples[0]);
+  const greeting = cards.find((c) => /how are you/i.test(c.translation)) ?? cards[0];
+  const pick = turn === 0 ? greeting : cards[Math.floor(Math.random() * cards.length)];
+  const ex = pick?.examples[0];
+  return {
+    reply: ex?.native ?? "…",
+    translation: ex?.translation ?? "",
+    tip: turn === 0 ? "Offline practice mode — add an Anthropic API key in Settings for a real conversation partner." : null,
+    source: "offline",
+  };
+}

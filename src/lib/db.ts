@@ -8,11 +8,12 @@
 import Dexie, { Table } from "dexie";
 import {
   VocabCard, Deck, ReviewLog, StudySession, NotebookEntry,
-  Profile, AppSettings, DEFAULT_SETTINGS, LanguageId, NEW_SRS,
+  Profile, AppSettings, DEFAULT_SETTINGS, LanguageId, NEW_SRS, LANGUAGES,
   uid, todayKey, Grade, QuizMode,
 } from "@/lib/types";
 import { review as sm2Review } from "@/lib/srs/sm2";
-import { SEED_DECKS, SEED_CARDS } from "@/lib/seed";
+import { SEED_DECKS, SEED_CARDS, SEED_VERSION } from "@/lib/seed";
+import type { UserAccount } from "@/lib/account";
 
 class PolyVaultDB extends Dexie {
   cards!: Table<VocabCard, string>;
@@ -22,6 +23,7 @@ class PolyVaultDB extends Dexie {
   notebook!: Table<NotebookEntry, string>;
   profile!: Table<Profile, string>;
   settings!: Table<AppSettings, string>;
+  account!: Table<UserAccount, string>;
 
   constructor() {
     super("polyvault");
@@ -34,6 +36,7 @@ class PolyVaultDB extends Dexie {
       profile: "id",
       settings: "id",
     });
+    this.version(2).stores({ account: "id" });
   }
 }
 
@@ -47,16 +50,46 @@ export function ensureSeeded(): Promise<void> {
   if (!seedPromise) {
     seedPromise = (async () => {
       const count = await db.cards.count();
-      if (count > 0) return;
-      await db.transaction("rw", db.cards, db.decks, db.profile, db.settings, async () => {
-        await db.decks.bulkPut(SEED_DECKS);
-        await db.cards.bulkPut(SEED_CARDS);
-        await db.profile.put({ id: "me", xp: 0, dailyGoal: 30, achievements: [] });
-        await db.settings.put(DEFAULT_SETTINGS);
-      });
+      if (count === 0) {
+        await db.transaction("rw", db.cards, db.decks, db.profile, db.settings, async () => {
+          await db.decks.bulkPut(SEED_DECKS);
+          await db.cards.bulkPut(SEED_CARDS);
+          await db.profile.put({ id: "me", xp: 0, dailyGoal: 30, achievements: [] });
+          await db.settings.put({ ...DEFAULT_SETTINGS, seedVersion: SEED_VERSION });
+        });
+        return;
+      }
+      await upgradeSeed();
     })();
   }
   return seedPromise;
+}
+
+/** Adds seed decks/cards introduced after this vault was created — never touches existing progress. */
+async function upgradeSeed(): Promise<void> {
+  const settings = (await db.settings.get("app")) ?? DEFAULT_SETTINGS;
+  if ((settings.seedVersion ?? 1) >= SEED_VERSION) return;
+  await db.transaction("rw", db.cards, db.decks, db.settings, async () => {
+    // languages no longer offered (e.g. Arabic MSA): drop their decks and cards; review history stays for stats
+    const offered = new Set<string>(LANGUAGES.map((l) => l.id));
+    const goneDecks = (await db.decks.toArray()).filter((d) => !offered.has(d.languageId)).map((d) => d.id);
+    const goneCards = (await db.cards.toArray()).filter((c) => !offered.has(c.languageId)).map((c) => c.id);
+    await db.decks.bulkDelete(goneDecks);
+    await db.cards.bulkDelete(goneCards);
+    if (!offered.has(settings.activeLanguage)) settings.activeLanguage = LANGUAGES[0].id;
+
+    const haveDecks = new Set(await db.decks.toCollection().primaryKeys());
+    const haveCards = new Set(await db.cards.toCollection().primaryKeys());
+    await db.decks.bulkAdd(SEED_DECKS.filter((d) => !haveDecks.has(d.id)));
+    // older seed decks gain their goal tag (keeps the learner's own edits otherwise)
+    for (const d of SEED_DECKS) {
+      if (!d.goal || !haveDecks.has(d.id)) continue;
+      // goal-track decks are app-owned, so their copy is refreshed too
+      await db.decks.update(d.id, d.id.includes("-goal-") ? { goal: d.goal, name: d.name, description: d.description } : { goal: d.goal });
+    }
+    await db.cards.bulkAdd(SEED_CARDS.filter((c) => !haveCards.has(c.id)));
+    await db.settings.put({ ...settings, id: "app", seedVersion: SEED_VERSION });
+  });
 }
 
 /* ------------------------------------------------------------
@@ -84,7 +117,15 @@ export async function getNewCards(languageId: LanguageId, limit: number): Promis
   const cards = await db.cards.where("languageId").equals(languageId).toArray();
   const introducedToday = await countNewIntroducedToday(languageId);
   const remaining = Math.max(0, limit - introducedToday);
-  return cards.filter((c) => c.srs.stage === "new").slice(0, remaining);
+  return orderNewCards(cards.filter((c) => c.srs.stage === "new")).slice(0, remaining);
+}
+
+/** Level 1 basics come first (in phrasebook order), then the rest by usefulness. */
+export function orderNewCards(cards: VocabCard[]): VocabCard[] {
+  const isBasic = (c: VocabCard) => c.deckIds.some((d) => d.endsWith("-basics"));
+  return [...cards].sort((a, b) =>
+    Number(isBasic(b)) - Number(isBasic(a)) ||
+    (isBasic(a) ? a.createdAt - b.createdAt : b.frequency - a.frequency || a.difficulty - b.difficulty));
 }
 
 async function countNewIntroducedToday(languageId: LanguageId): Promise<number> {

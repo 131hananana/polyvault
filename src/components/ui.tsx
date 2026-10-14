@@ -105,3 +105,25 @@ export function Bar({ pct, color = "var(--accent)" }: { pct: number; color?: str
     </div>
   );
 }
+
+export type PatternName = "dots" | "zigzag" | "confetti" | "waves" | "plus" | "paper";
+
+/** Playful page header: warm gradient wash + a decorative pattern. */
+export function PageHero({ title, sub, pattern = "dots", sticker, action, className = "" }: {
+  title: ReactNode; sub?: ReactNode; pattern?: PatternName; sticker?: string; action?: ReactNode; className?: string;
+}) {
+  return (
+    <div className={`hero pattern-${pattern} p-5 md:p-7 flex flex-wrap items-end justify-between gap-4 ${className}`}>
+      <div className="flex items-center gap-4 min-w-0">
+        {sticker && (
+          <span className="sticker w-14 h-14 text-3xl shrink-0 bg-surface border border-line">{sticker}</span>
+        )}
+        <div className="min-w-0">
+          <h1 className="text-2xl md:text-3xl font-bold">{title}</h1>
+          {sub && <div className="text-sm text-ink-muted mt-1">{sub}</div>}
+        </div>
+      </div>
+      {action}
+    </div>
+  );
+}

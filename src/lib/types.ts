@@ -2,7 +2,7 @@
    PolyVault — Core domain types
    ============================================================ */
 
-export type LanguageId = "fr" | "es" | "darija" | "ar" | "en-pro";
+export type LanguageId = "fr" | "es" | "pt" | "de" | "it" | "ru" | "darija" | "en-pro";
 
 export interface Language {
   id: LanguageId;
@@ -19,9 +19,12 @@ export interface Language {
 export const LANGUAGES: Language[] = [
   { id: "fr", name: "French", nativeName: "Français", flag: "🇫🇷", speechTag: "fr-FR", rtl: false, hasRomanization: false },
   { id: "es", name: "Spanish", nativeName: "Español", flag: "🇪🇸", speechTag: "es-ES", rtl: false, hasRomanization: false },
+  { id: "pt", name: "Portuguese", nativeName: "Português", flag: "🇧🇷", speechTag: "pt-BR", rtl: false, hasRomanization: false },
+  { id: "de", name: "German", nativeName: "Deutsch", flag: "🇩🇪", speechTag: "de-DE", rtl: false, hasRomanization: false },
+  { id: "it", name: "Italian", nativeName: "Italiano", flag: "🇮🇹", speechTag: "it-IT", rtl: false, hasRomanization: false },
+  { id: "ru", name: "Russian", nativeName: "Русский", flag: "🇷🇺", speechTag: "ru-RU", rtl: false, hasRomanization: true },
   { id: "darija", name: "Moroccan Darija", nativeName: "الدارجة", flag: "🇲🇦", speechTag: "ar-MA", rtl: true, hasRomanization: true },
-  { id: "ar", name: "Arabic", nativeName: "العربية", flag: "🇸🇦", speechTag: "ar-SA", rtl: true, hasRomanization: true },
-  { id: "en-pro", name: "Professional English", nativeName: "English", flag: "🇺🇸", speechTag: "en-US", rtl: false, hasRomanization: false },
+  { id: "en-pro", name: "English", nativeName: "English", flag: "🇺🇸", speechTag: "en-US", rtl: false, hasRomanization: false },
 ];
 
 export const languageById = (id: LanguageId): Language =>
@@ -38,6 +41,8 @@ export type Frequency = 1 | 2 | 3 | 4 | 5;
 
 export interface ExampleSentence {
   native: string;
+  /** how to read the sentence in Latin letters (non-Latin scripts) */
+  reading?: string;
   translation: string;
   explanation: string;
   whyUseful: string;
@@ -119,6 +124,53 @@ export type Grade = 0 | 1 | 2 | 3; // Again | Hard | Good | Easy
 export const GRADE_LABELS = ["Again", "Hard", "Good", "Easy"] as const;
 
 /* ------------------------------------------------------------
+   Learning goals — every language is learned toward one focus.
+   The first goal per language is free; others unlock for a fee.
+   ------------------------------------------------------------ */
+export type LearningGoal = "travel" | "daily" | "work" | "native";
+
+export interface GoalDef {
+  id: LearningGoal;
+  label: string;
+  short: string;
+  emoji: string;
+  /** reads after a language name: "Spanish for traveling", "Spanish like a native" */
+  purpose: string;
+  description: string;
+  topics: string[];
+  /** CEFR level of the goal vocabulary */
+  cefr: CEFR;
+}
+
+export const GOALS: GoalDef[] = [
+  { id: "travel", label: "Traveling", short: "Travel", emoji: "✈️", purpose: "for traveling",
+    description: "Airports, hotels, ordering food, asking for directions — get around with confidence.",
+    topics: ["Airport & transport", "Hotel", "Restaurant & café", "Directions & help"], cefr: "A2" },
+  { id: "daily", label: "Daily conversation", short: "Daily", emoji: "☕", purpose: "for daily conversation",
+    description: "Small talk, feelings, routines and plans — chat naturally with friends and neighbours.",
+    topics: ["Small talk", "Feelings & opinions", "Daily routine", "Plans & invitations"], cefr: "A2" },
+  { id: "work", label: "Work & career", short: "Work", emoji: "💼", purpose: "for work",
+    description: "Meetings, emails, scheduling and colleagues — sound professional at work.",
+    topics: ["Meetings", "Email & messages", "Scheduling", "Colleagues & office"], cefr: "B1" },
+  { id: "native", label: "Sound like a native", short: "Native", emoji: "🗣️", purpose: "like a native",
+    description: "Slang, fillers, idioms and casual shortcuts — talk the way locals really talk.",
+    topics: ["Slang", "Fillers & reactions", "Idioms", "Casual shortcuts"], cefr: "B1" },
+];
+
+export const goalById = (id: LearningGoal): GoalDef => GOALS.find((g) => g.id === id) ?? GOALS[0];
+
+/** Price to unlock an extra goal for one language (USD) */
+export const GOAL_UNLOCK_PRICE_USD = 3;
+
+export interface LanguageGoalState {
+  /** the goal currently studied */
+  focus: LearningGoal;
+  /** goals the learner may study (first one free, the rest purchased) */
+  unlocked: LearningGoal[];
+  chosenAt: number;
+}
+
+/* ------------------------------------------------------------
    Decks
    ------------------------------------------------------------ */
 export interface Deck {
@@ -129,6 +181,8 @@ export interface Deck {
   emoji: string;
   isAI: boolean;
   createdAt: number;
+  /** goal track this deck belongs to; untagged decks are open to everyone */
+  goal?: LearningGoal;
 }
 
 /* ------------------------------------------------------------
@@ -137,7 +191,8 @@ export interface Deck {
 export type QuizMode =
   | "flashcards" | "multiple-choice" | "typing" | "listening"
   | "pronunciation" | "reverse" | "fill-blank" | "sentence-completion"
-  | "match-pairs" | "speed" | "timed" | "mistake-review";
+  | "match-pairs" | "speed" | "timed" | "mistake-review"
+  | "sentence-puzzle" | "daily-lesson";
 
 export interface ReviewLog {
   id?: number;
@@ -214,6 +269,10 @@ export interface AppSettings {
   remindersEnabled: boolean;
   reminderTime: string; // HH:MM
   anthropicApiKey?: string;
+  /** which seed content version this vault has received */
+  seedVersion?: number;
+  /** learning goal per language */
+  goals?: Partial<Record<LanguageId, LanguageGoalState>>;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {

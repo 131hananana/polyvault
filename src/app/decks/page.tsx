@@ -3,11 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Plus, Sparkles, X } from "lucide-react";
+import { Plus, Sparkles, X, Lock } from "lucide-react";
+import { isDeckOpen, goalStateFor } from "@/lib/goals";
+import { UnlockSheet } from "@/components/goals/Goals";
 import { useApp } from "@/components/Providers";
 import { db, addDeck } from "@/lib/db";
-import { languageById } from "@/lib/types";
-import { EmptyState } from "@/components/ui";
+import { languageById, goalById, LearningGoal } from "@/lib/types";
+import { EmptyState, PageHero } from "@/components/ui";
 import { motion } from "framer-motion";
 
 export default function DecksPage() {
@@ -17,6 +19,8 @@ export default function DecksPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [emoji, setEmoji] = useState("📚");
+  const [unlocking, setUnlocking] = useState<LearningGoal | null>(null);
+  const goalState = goalStateFor(settings, settings.activeLanguage);
 
   const decks = useLiveQuery(
     () => db.decks.where("languageId").equals(settings.activeLanguage).toArray(),
@@ -37,16 +41,14 @@ export default function DecksPage() {
 
   return (
     <div className="fade-up">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Decks {lang.flag}</h1>
-          <p className="text-sm text-ink-muted mt-1">Unlimited custom decks — every card still shares one SM-2 schedule.</p>
-        </div>
-        <div className="flex gap-2">
-          <Link href="/generate" className="btn btn-outline"><Sparkles size={15} /> AI generate</Link>
-          <button onClick={() => setCreating(true)} className="btn btn-primary"><Plus size={15} /> New deck</button>
-        </div>
-      </div>
+      <PageHero pattern="confetti" sticker="🗂️" title={<>Decks {lang.flag}</>}
+        sub="Unlimited custom decks — every card still shares one SM-2 schedule."
+        action={
+          <div className="flex gap-2">
+            <Link href="/generate" className="btn btn-outline"><Sparkles size={15} /> AI generate</Link>
+            <button onClick={() => setCreating(true)} className="btn btn-primary"><Plus size={15} /> New deck</button>
+          </div>
+        } />
 
       {creating && (
         <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} className="card p-5 mt-5">
@@ -66,19 +68,36 @@ export default function DecksPage() {
       )}
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-6">
-        {decks?.map((d) => (
-          <Link key={d.id} href={`/decks/${d.id}`}
-            className="card p-5 hover:-translate-y-0.5 hover:shadow-lg transition-all">
-            <div className="flex items-start justify-between">
-              <span className="text-3xl">{d.emoji}</span>
-              {d.isAI && <span className="pill !bg-accent-soft !text-accent !border-transparent"><Sparkles size={10} /> AI</span>}
-            </div>
-            <h3 className="font-semibold mt-3">{d.name}</h3>
-            <p className="text-xs text-ink-muted mt-1 line-clamp-2">{d.description}</p>
-            <p className="text-xs text-ink-faint mt-3">{countFor(d.id)} cards</p>
-          </Link>
-        ))}
+        {decks
+          ?.slice()
+          .sort((a, b) => Number(!isDeckOpen(a, goalState)) - Number(!isDeckOpen(b, goalState)) || a.createdAt - b.createdAt)
+          .map((d) => {
+            const open = isDeckOpen(d, goalState);
+            const focus = d.goal && goalState?.focus === d.goal;
+            const body = (
+              <>
+                <div className="flex items-start justify-between gap-2">
+                  <span className={`text-3xl ${open ? "" : "grayscale opacity-60"}`}>{d.emoji}</span>
+                  <span className="flex gap-1 flex-wrap justify-end">
+                    {focus && <span className="pill !bg-accent !text-white !border-transparent">Focus</span>}
+                    {d.goal && !focus && open && <span className="pill">{goalById(d.goal).emoji} {goalById(d.goal).short}</span>}
+                    {!open && <span className="pill !bg-sun/25 !border-sun/50 !text-ink"><Lock size={10} /> {goalById(d.goal!).short} · $3</span>}
+                    {d.isAI && <span className="pill !bg-accent-soft !text-accent !border-transparent"><Sparkles size={10} /> AI</span>}
+                  </span>
+                </div>
+                <h3 className={`font-semibold mt-3 ${open ? "" : "text-ink-muted"}`}>{d.name}</h3>
+                <p className="text-xs text-ink-muted mt-1 line-clamp-2">{d.description}</p>
+                <p className="text-xs text-ink-faint mt-3">{countFor(d.id)} cards{!open && " · tap to unlock"}</p>
+              </>
+            );
+            return open ? (
+              <Link key={d.id} href={`/decks/${d.id}`} className="card p-5 hover:-translate-y-0.5 hover:shadow-lg transition-all">{body}</Link>
+            ) : (
+              <button key={d.id} onClick={() => setUnlocking(d.goal!)} className="card p-5 text-left border-dashed hover:-translate-y-0.5 transition-all">{body}</button>
+            );
+          })}
       </div>
+      {unlocking && <UnlockSheet lang={settings.activeLanguage} goal={unlocking} onClose={() => setUnlocking(null)} />}
 
       {decks?.length === 0 && (
         <div className="mt-6">

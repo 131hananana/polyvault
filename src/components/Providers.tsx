@@ -33,7 +33,9 @@ function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const settings = useLiveQuery(() => db.settings.get("app"), [], DEFAULT_SETTINGS) ?? DEFAULT_SETTINGS;
+  // `null` while loading so pages never act on placeholder settings
+  const stored = useLiveQuery(() => db.settings.get("app").then((v) => v ?? DEFAULT_SETTINGS), [], null);
+  const settings = stored ?? DEFAULT_SETTINGS;
 
   useEffect(() => {
     document.documentElement.dataset.fontsize = settings.fontSize;
@@ -43,7 +45,7 @@ function AppProvider({ children }: { children: ReactNode }) {
   const patchSettings = useCallback((p: Partial<AppSettings>) => { updateSettings(p); }, []);
 
   return (
-    <AppContext.Provider value={{ settings, ready, setLanguage, patchSettings }}>
+    <AppContext.Provider value={{ settings, ready: ready && stored !== null, setLanguage, patchSettings }}>
       {children}
     </AppContext.Provider>
   );

@@ -8,18 +8,71 @@
    ============================================================ */
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
+import { moderateMessage } from "@/lib/moderation";
 
 export const maxDuration = 120;
 
 const MODEL = "claude-sonnet-5";
 
-type Task = "tutor" | "explain" | "generate" | "extract";
+type Task = "tutor" | "explain" | "generate" | "extract" | "chat";
+
+/* ---------------- Connect: AI practice partner ---------------- */
+const CHAT_MODEL = "claude-opus-5-5";
+
+interface ChatTurn { role: "user" | "partner"; text: string }
+
+function chatSystem(p: Record<string, unknown>): string {
+  return `You are a friendly native speaker of ${p.language} chatting with a language learner inside PolyVault's Connect feature.
+The learner's level is about ${p.level ?? "A2"}${p.goal ? ` and they are learning for: ${p.goal}` : ""}. Their own language for explanations is ${p.explainIn ?? "English"}.
+
+How to chat:
+- Reply ONLY in ${p.language}, in 1–3 short, natural sentences matched to their level, and usually end with a question to keep the conversation going.
+- Talk about everyday, culture and language-exchange topics. If they make a mistake, give one gentle correction in "tip"; otherwise "tip" is null.
+- Safety rules you must uphold: never discuss sexual topics, never ask for or share contact details, social media handles, phone numbers, emails or links, and never suggest moving to another app. If the learner tries, kindly decline and steer back to the conversation.
+
+Respond with ONLY JSON: { "reply": string, "translation": string, "tip": string | null } — "translation" is your reply translated into ${p.explainIn ?? "English"}.`;
+}
+
+async function chat(apiKey: string, payload: Record<string, unknown>) {
+  const history = (Array.isArray(payload.history) ? payload.history : []) as ChatTurn[];
+  const last = history[history.length - 1];
+  // defence in depth: the client already blocks these before sending
+  if (last?.role === "user" && !moderateMessage(last.text).ok) {
+    return NextResponse.json({ error: "moderation" }, { status: 422 });
+  }
+
+  const messages: Anthropic.Beta.BetaMessageParam[] = [
+    { role: "user", content: "(The learner just joined. Greet them and open the conversation.)" },
+    ...history.slice(-30).map((t): Anthropic.Beta.BetaMessageParam => ({
+      role: t.role === "user" ? "user" : "assistant",
+      content: String(t.text).slice(0, 1000),
+    })),
+  ];
+
+  const client = new Anthropic({ apiKey });
+  const msg = await client.beta.messages.create({
+    model: CHAT_MODEL,
+    max_tokens: 1024,
+    // if a safety classifier declines, the API re-runs the turn on the fallback model
+    betas: ["server-side-fallback-2026-06-01"],
+    fallbacks: [{ model: "claude-opus-4-8" }],
+    output_config: { effort: "low" },
+    system: chatSystem(payload),
+    messages,
+  });
+  if (msg.stop_reason === "refusal") {
+    return NextResponse.json({ reply: null, refused: true });
+  }
+  const text = msg.content.filter((b) => b.type === "text").map((b) => (b as { text: string }).text).join("");
+  const parsed = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
+  return NextResponse.json(parsed);
+}
 
 const SYSTEM = `You are the AI tutor inside PolyVault, a private vocabulary learning app.
 You are an experienced, warm but rigorous language teacher.
 Always respond with ONLY valid JSON matching the requested schema — no markdown fences, no prose outside JSON.`;
 
-function buildPrompt(task: Task, payload: Record<string, unknown>): string {
+function buildPrompt(task: Exclude<Task, "chat">, payload: Record<string, unknown>): string {
   switch (task) {
     case "tutor":
       return `A learner made a mistake in a ${payload.language} vocabulary quiz.
@@ -62,7 +115,7 @@ JSON schema:
       return `Generate ${payload.count} vocabulary cards for learning ${payload.language}.
 Topic: ${payload.topic}. CEFR level: ${payload.cefr}. Difficulty: ${payload.difficulty}.
 ${payload.scenario ? `Scenario/industry/occupation: ${payload.scenario}.` : ""}
-Language id: ${payload.languageId} ("darija" = Moroccan Darija in Arabic script with Latin romanization using 3/7/9 digits; "ar" = MSA with academic romanization).
+Language id: ${payload.languageId} ("darija" = Moroccan Darija in Arabic script with Latin romanization using 3/7/9 digits; "ru" = Russian in Cyrillic with Latin transliteration in "romanization" and example "reading"; "pt" = Brazilian Portuguese).
 
 Every card must be complete and pedagogically rich. JSON schema — return { "cards": [...] } where each card is:
 {
@@ -70,13 +123,14 @@ Every card must be complete and pedagogically rich. JSON schema — return { "ca
   "partOfSpeech": "noun"|"verb"|"adjective"|"adverb"|"phrase"|"idiom"|"expression"|"preposition"|"interjection",
   "cefr": "A1"|"A2"|"B1"|"B2"|"C1"|"C2", "topic": string,
   "difficulty": 1|2|3|4|5, "frequency": 1|2|3|4|5,
-  "pronunciation": string, "ipa": string, "romanization": string|null,
+  "pronunciation": string,  // easy English-style respelling in Latin letters, stressed syllable in CAPS, e.g. "bohn-ZHOOR"
+  "ipa": string, "romanization": string|null,
   "gender": "masculine"|"feminine"|"none", "plural": string|null,
   "collocations": string[], "synonyms": string[], "antonyms": string[], "relatedWords": string[],
   "memoryTips": string, "commonMistakes": string, "culturalNotes": string|null,
   "grammarNotes": string|null, "usageNotes": string|null,
   "register": "formal"|"neutral"|"casual",
-  "examples": [{ "native": string, "translation": string, "explanation": string, "whyUseful": string }]  // at least 3
+  "examples": [{ "native": string, "reading": string|null, "translation": string, "explanation": string, "whyUseful": string }]  // at least 3; "reading" = Latin-letter reading for non-Latin scripts
 }`;
     case "extract":
       return `Extract the most valuable vocabulary for a ${payload.language} learner from this text, and build complete learning cards.
@@ -105,12 +159,13 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    if (body.task === "chat") return await chat(apiKey, body.payload);
     const client = new Anthropic({ apiKey });
     const msg = await client.messages.create({
       model: MODEL,
       max_tokens: body.task === "generate" || body.task === "extract" ? 16000 : 3000,
       system: SYSTEM,
-      messages: [{ role: "user", content: buildPrompt(body.task, body.payload) }],
+      messages: [{ role: "user", content: buildPrompt(body.task as Exclude<Task, "chat">, body.payload) }],
     });
     const text = msg.content.filter((b) => b.type === "text").map((b) => (b as { text: string }).text).join("");
     const jsonStart = text.indexOf("{");

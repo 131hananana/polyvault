@@ -6,7 +6,7 @@ import { Trash2, ArrowUpRight } from "lucide-react";
 import { db, addCard } from "@/lib/db";
 import { useApp } from "@/components/Providers";
 import { languageById, NoteKind, NotebookEntry, uid } from "@/lib/types";
-import { EmptyState } from "@/components/ui";
+import { EmptyState, PageHero } from "@/components/ui";
 
 const KINDS: { id: NoteKind; label: string; emoji: string }[] = [
   { id: "word", label: "Word", emoji: "💬" },
@@ -54,8 +54,7 @@ export default function NotebookPage() {
 
   return (
     <div className="fade-up max-w-2xl mx-auto">
-      <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Notebook {lang.flag}</h1>
-      <p className="text-sm text-ink-muted mt-1">Capture now, turn into full cards later.</p>
+      <PageHero pattern="paper" sticker="📝" title={<>Notebook {lang.flag}</>} sub="Capture now, turn into full cards later." />
 
       <div className="card p-5 mt-5">
         <div className="flex gap-1.5 mb-3">

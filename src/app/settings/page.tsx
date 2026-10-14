@@ -5,7 +5,8 @@ import { useEffect, useState } from "react";
 import { Sun, Moon, Monitor, KeyRound, Bell } from "lucide-react";
 import { useApp } from "@/components/Providers";
 import { LANGUAGES } from "@/lib/types";
-import { SectionTitle } from "@/components/ui";
+import { SectionTitle, PageHero } from "@/components/ui";
+import { GoalSwitcher } from "@/components/goals/Goals";
 
 export default function SettingsPage() {
   const { settings, patchSettings, setLanguage } = useApp();
@@ -24,7 +25,7 @@ export default function SettingsPage() {
 
   return (
     <div className="fade-up max-w-2xl mx-auto">
-      <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Settings</h1>
+      <PageHero pattern="dots" sticker="⚙️" title="Settings" />
 
       <SectionTitle>Appearance</SectionTitle>
       <div className="card p-5 grid gap-5">
@@ -58,6 +59,9 @@ export default function SettingsPage() {
           <select className="input !w-auto" value={settings.activeLanguage} onChange={(e) => setLanguage(e.target.value as typeof settings.activeLanguage)}>
             {LANGUAGES.map((l) => <option key={l.id} value={l.id}>{l.flag} {l.name}</option>)}
           </select>
+        </Row>
+        <Row label="Learning goal" hint="What lessons in this language focus on. Your first goal is free.">
+          <GoalSwitcher />
         </Row>
         <Row label="Daily goal" hint="Reviews per day to keep your streak meaningful">
           <input type="number" min={5} max={500} className="input !w-24 text-center" value={settings.dailyGoal}
