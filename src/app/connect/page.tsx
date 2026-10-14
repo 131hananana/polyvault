@@ -161,7 +161,7 @@ function SafetyStrip({ strikes }: { strikes: number }) {
 }
 
 /* ---------------- text chat ---------------- */
-interface Bubble { role: "user" | "partner"; text: string; translation?: string; tip?: string | null }
+interface Bubble { role: "user" | "partner"; text: string; translation?: string; reading?: string; tip?: string | null }
 
 function ChatRoom({ languageId, onLeave }: { languageId: LanguageId; onLeave: () => void }) {
   const { settings } = useApp();
@@ -173,6 +173,7 @@ function ChatRoom({ languageId, onLeave }: { languageId: LanguageId; onLeave: ()
   const [blocked, setBlocked] = useState<{ reason: string; strike: number; banned: boolean } | null>(null);
   const [reporting, setReporting] = useState(false);
   const [shown, setShown] = useState<Set<number>>(new Set());
+  const [online, setOnline] = useState<boolean | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   const level = account.learningLanguages.find((l) => l.code === VAULT_TO_WORLD[languageId])?.level ?? "A2";
@@ -183,7 +184,8 @@ function ChatRoom({ languageId, onLeave }: { languageId: LanguageId; onLeave: ()
     setThinking(true);
     const turns: PartnerTurn[] = history.map((b) => ({ role: b.role, text: b.text }));
     const r = await getPartnerReply({ languageId, level, goal: goal ? goalById(goal.focus).label : undefined, explainIn, history: turns });
-    setBubbles([...history, { role: "partner", text: r.reply, translation: r.translation, tip: r.tip }]);
+    setOnline(r.source === "claude");
+    setBubbles([...history, { role: "partner", text: r.reply, translation: r.translation, reading: r.reading, tip: r.tip }]);
     setThinking(false);
   };
 
@@ -213,7 +215,7 @@ function ChatRoom({ languageId, onLeave }: { languageId: LanguageId; onLeave: ()
         <span className="w-10 h-10 rounded-full grid place-items-center text-white" style={{ background: "linear-gradient(135deg, var(--sky), var(--mint))" }}><Bot size={19} /></span>
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-sm">Practice partner {lang.flag}</div>
-          <div className="text-xs text-ink-muted">AI partner · live native speakers coming soon</div>
+          <div className="text-xs text-ink-muted">{online === false ? "Offline practice mode" : "AI partner"} · live native speakers coming soon</div>
         </div>
         <button className="btn btn-ghost !p-2 text-bad" onClick={() => setReporting(true)} aria-label="Report"><Flag size={17} /></button>
       </div>
@@ -233,6 +235,7 @@ function ChatRoom({ languageId, onLeave }: { languageId: LanguageId; onLeave: ()
                 <p className="text-[15px] native-script flex-1" dir={lang.rtl ? "rtl" : "ltr"}>{b.text}</p>
                 <AudioButton text={b.text} lang={lang.speechTag} className="!p-1.5 shrink-0 -mt-0.5" />
               </div>
+              {b.reading && <p className="read-as text-xs text-ink-muted mt-1">🗣 {b.reading}</p>}
               {b.translation && (shown.has(i)
                 ? <p className="text-xs text-ink-muted italic mt-1">{b.translation}</p>
                 : <button className="text-[11px] text-accent mt-1 inline-flex items-center gap-1" onClick={() => setShown(new Set(shown).add(i))}><Languages size={11} /> Translate</button>)}
