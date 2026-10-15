@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { VocabCard, Grade, languageById } from "@/lib/types";
 import { recordAnswer, logSession } from "@/lib/db";
-import { speak } from "@/lib/audio";
+import { speak, audioAvailable } from "@/lib/audio";
 import { DailyLessonPlan } from "@/lib/lesson";
 import { ReadAs, ExampleLine } from "@/components/ReadAs";
 import { Bar } from "@/components/ui";
@@ -32,7 +32,8 @@ const STEPS = [
   { id: "choice", title: "Choose the meaning", short: "A · B · C", icon: ListChecks, eligible: () => true },
   { id: "blank", title: "Fill in the blank", short: "Blanks", icon: TextCursorInput, eligible: canBlank },
   { id: "puzzle", title: "Build the sentence", short: "Puzzle", icon: Puzzle, eligible: canPuzzle },
-  { id: "listen", title: "Listen", short: "Listen", icon: Ear, eligible: () => true },
+  // skipped for languages whose audio is still coming soon (Darija)
+  { id: "listen", title: "Listen", short: "Listen", icon: Ear, eligible: (c: VocabCard) => audioAvailable(languageById(c.languageId).speechTag) },
   { id: "speak", title: "Speak", short: "Speak", icon: Mic, eligible: () => true },
 ] as const;
 type StepId = (typeof STEPS)[number]["id"];

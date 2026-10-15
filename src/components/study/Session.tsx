@@ -22,6 +22,7 @@ import {
 import { TutorPanel } from "./TutorPanel";
 import { MatchPairs } from "./MatchPairs";
 import { Bar } from "@/components/ui";
+import { audioAvailable } from "@/lib/audio";
 
 interface Props {
   mode: QuizMode;
@@ -55,9 +56,11 @@ export function Session({ mode, cards, onExit, mixed = false, timeLimit }: Props
 
   // per-card question mode when mixed
   const cardMode: QuizMode = useMemo(() => {
-    if (!mixed) return mode;
-    return MIXED_ROTATION[idx % MIXED_ROTATION.length];
-  }, [mixed, mode, idx]);
+    const pickMode = mixed ? MIXED_ROTATION[idx % MIXED_ROTATION.length] : mode;
+    // no listening questions while a language's audio is coming soon
+    if (pickMode === "listening" && card && !audioAvailable(languageById(card.languageId).speechTag)) return "multiple-choice";
+    return pickMode;
+  }, [mixed, mode, idx, card]);
 
   /* ---- timed challenge countdown ---- */
   useEffect(() => {

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Volume2, Turtle } from "lucide-react";
-import { speak, speakSlow } from "@/lib/audio";
+import { speak, speakSlow, audioAvailable } from "@/lib/audio";
 import { useApp } from "./Providers";
 
 export function AudioButton({ text, lang, slow = false, className = "" }: {
@@ -12,6 +12,15 @@ export function AudioButton({ text, lang, slow = false, className = "" }: {
   const [silent, setSilent] = useState(false);
   const { settings } = useApp();
   const Icon = slow ? Turtle : Volume2;
+  if (!audioAvailable(lang)) {
+    // one "coming soon" chip per word, so the slow button is simply hidden
+    return slow ? null : (
+      <span title="Native audio for this language is coming soon"
+        className="pill !text-[10px] !py-0.5 !px-2 shrink-0 text-ink-faint">
+        🔇 Audio soon
+      </span>
+    );
+  }
   return (
     <button
       aria-label={slow ? "Play slow audio" : "Play audio"}

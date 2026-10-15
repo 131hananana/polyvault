@@ -71,8 +71,17 @@ function playCloud(text: string, lang: string, slow: boolean): Promise<boolean> 
   });
 }
 
+/**
+ * Languages whose audio is switched off until a native-sounding voice is available.
+ * Darija: no device has a Darija voice and the Azure ar-MA voice isn't set up yet.
+ * Remove "ar-MA" here once AZURE_SPEECH_KEY/REGION are configured.
+ */
+export const AUDIO_COMING_SOON = new Set(["ar-MA"]);
+export const audioAvailable = (lang: string) => !AUDIO_COMING_SOON.has(lang);
+
 /** Resolves `true` once speech finished, `false` if nothing could be played. */
 export async function speak(text: string, lang: string, rate = 1): Promise<boolean> {
+  if (!audioAvailable(lang)) return false;
   if (typeof window !== "undefined" && CLOUD_VOICE_LANGS.has(lang) && cloudTts !== "off") {
     if (await playCloud(text, lang, rate < 0.8)) return true;
   }

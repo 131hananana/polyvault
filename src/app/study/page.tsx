@@ -15,6 +15,7 @@ import { useApp } from "@/components/Providers";
 import { db } from "@/lib/db";
 import { VocabCard, QuizMode, languageById, DAY_MS, goalById } from "@/lib/types";
 import { Session } from "@/components/study/Session";
+import { audioAvailable } from "@/lib/audio";
 import { DailyLesson } from "@/components/study/lesson/DailyLesson";
 import { buildDailyLesson, DailyLessonPlan } from "@/lib/lesson";
 import { goalContext, goalStateFor, orderNewCardsForGoal } from "@/lib/goals";
@@ -98,7 +99,8 @@ function StudyInner() {
         />
       );
     }
-    const sessionMode: QuizMode = (["daily", "weekly", "monthly"].includes(def.id) ? "multiple-choice" : def.id) as QuizMode;
+    let sessionMode: QuizMode = (["daily", "weekly", "monthly"].includes(def.id) ? "multiple-choice" : def.id) as QuizMode;
+    if (sessionMode === "listening" && !audioAvailable(lang.speechTag)) sessionMode = "multiple-choice";
     return (
       <Session
         key={def.id + settings.activeLanguage}
@@ -144,7 +146,10 @@ function StudyInner() {
 
       <SectionTitle>Quiz modes</SectionTitle>
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {QUIZ_MODES.map((m) => <ModeCard key={m.id} def={m} onClick={() => router.push(`/study?mode=${m.id}`)} />)}
+        {QUIZ_MODES.map((m) => {
+          const soon = m.id === "listening" && !audioAvailable(lang.speechTag);
+          return <ModeCard key={m.id} def={soon ? { ...m, desc: "Audio for this language is coming soon" } : m} disabled={soon} onClick={() => router.push(`/study?mode=${m.id}`)} />;
+        })}
       </div>
       </>
       )}
@@ -152,11 +157,11 @@ function StudyInner() {
   );
 }
 
-function ModeCard({ def, onClick, accent = false }: { def: ModeDef; onClick: () => void; accent?: boolean }) {
+function ModeCard({ def, onClick, accent = false, disabled = false }: { def: ModeDef; onClick: () => void; accent?: boolean; disabled?: boolean }) {
   const Icon = def.icon;
   return (
-    <button onClick={onClick}
-      className="card p-4 md:p-5 text-left flex items-start gap-3.5 hover:-translate-y-0.5 hover:shadow-lg transition-all cursor-pointer">
+    <button onClick={onClick} disabled={disabled}
+      className={`card p-4 md:p-5 text-left flex items-start gap-3.5 transition-all ${disabled ? "opacity-50 cursor-not-allowed" : "hover:-translate-y-0.5 hover:shadow-lg cursor-pointer"}`}>
       <span className={`w-10 h-10 rounded-xl grid place-items-center shrink-0 ${accent ? "bg-accent text-white" : "bg-accent-soft text-accent"}`}>
         <Icon size={18} />
       </span>
