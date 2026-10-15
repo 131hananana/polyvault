@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import {
   Home, Layers, BarChart3, Settings, Search, NotebookPen,
-  Sparkles, Sun, Moon, GraduationCap, Import, ChevronDown, UserRound, Users,
+  Sparkles, Sun, Moon, GraduationCap, Import, ChevronDown, UserRound, Users, Pencil,
 } from "lucide-react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db";
@@ -27,7 +27,6 @@ const NAV = [
   { href: "/generate", label: "AI Decks", icon: Sparkles },
   { href: "/import", label: "Import", icon: Import },
   { href: "/stats", label: "Statistics", icon: BarChart3 },
-  { href: "/account", label: "Account", icon: UserRound },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -99,14 +98,25 @@ function LanguageSwitcher({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function AccountButton() {
+/** Photo, name and @username in place of a logo; the pencil goes straight to edit. */
+function AccountChip({ compact = false }: { compact?: boolean }) {
   const account = useLiveQuery(() => db.account.get("me"), []);
+  const size = compact ? 34 : 40;
   return (
-    <Link href="/account" aria-label="Account" className="rounded-full">
-      {account
-        ? <Avatar account={account} size={34} />
-        : <span className="w-[34px] h-[34px] rounded-full bg-surface-2 grid place-items-center text-ink-muted"><UserRound size={17} /></span>}
-    </Link>
+    <div className="flex items-center gap-1 min-w-0">
+      <Link href="/account" aria-label="Account" className="flex items-center gap-2.5 min-w-0 flex-1 rounded-xl p-1 -m-1 hover:bg-surface-2 transition-colors">
+        {account
+          ? <Avatar account={account} size={size} />
+          : <span className="rounded-full bg-surface-2 grid place-items-center text-ink-muted shrink-0" style={{ width: size, height: size }}><UserRound size={18} /></span>}
+        <span className="min-w-0">
+          <span className={`block font-semibold truncate ${compact ? "text-sm" : "text-[15px]"}`}>{account?.displayName || "Set up profile"}</span>
+          <span className="block text-xs text-ink-muted truncate">{account?.username ? `@${account.username}` : "Your account"}</span>
+        </span>
+      </Link>
+      <Link href="/account/edit" aria-label="Edit profile" title="Edit profile" className="btn btn-ghost !p-2 rounded-lg shrink-0">
+        <Pencil size={15} />
+      </Link>
+    </div>
   );
 }
 
@@ -120,10 +130,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-dvh flex">
       {/* ---------- desktop sidebar ---------- */}
       <aside className="hidden md:flex flex-col w-60 shrink-0 border-r border-line bg-surface/60 backdrop-blur-xl sticky top-0 h-dvh px-4 py-6 gap-6">
-        <Link href="/" className="flex items-center gap-2.5 px-2">
-          <span className="w-9 h-9 rounded-xl logo-tile grid place-items-center font-bold text-lg shadow-md font-display">P</span>
-          <span className="font-semibold text-[19px] font-display">PolyVault</span>
-        </Link>
+        <div className="px-1"><AccountChip /></div>
 
         <LanguageSwitcher />
 
@@ -145,7 +152,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="flex items-center justify-between px-1">
-          <span className="text-xs text-ink-faint">Private · Offline-first</span>
+          <span className="text-xs text-ink-faint"><b className="font-display font-semibold text-ink-muted">PolyVault</b> · Private · Offline-first</span>
           <ThemeToggle />
         </div>
       </aside>
@@ -157,14 +164,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           className="md:hidden sticky top-0 z-40 flex items-center justify-between gap-3 px-4 py-3 bg-bg/80 backdrop-blur-xl border-b border-line"
           style={{ paddingTop: "calc(env(safe-area-inset-top) + 0.75rem)" }}
         >
-          <Link href="/" className="flex items-center gap-2">
-            <span className="w-8 h-8 rounded-lg logo-tile grid place-items-center font-bold shadow-sm font-display">P</span>
-            <span className="font-semibold text-[17px] font-display">PolyVault</span>
-          </Link>
-          <div className="flex items-center gap-1.5">
+          <div className="min-w-0 flex-1"><AccountChip compact /></div>
+          <div className="flex items-center gap-1.5 shrink-0">
             <LanguageSwitcher compact />
             <ThemeToggle />
-            <AccountButton />
           </div>
         </header>
 
