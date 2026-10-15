@@ -7,7 +7,7 @@
 import {
   AppSettings, Deck, LanguageId, LanguageGoalState, LearningGoal, VocabCard,
 } from "@/lib/types";
-import { getSettings, updateSettings } from "@/lib/db";
+import { db, getSettings, updateSettings } from "@/lib/db";
 
 /**
  * Real payments need a backend (Stripe checkout + webhook) to be trustworthy.
@@ -22,8 +22,10 @@ export function goalStateFor(settings: AppSettings, lang: LanguageId): LanguageG
 }
 
 async function patchGoal(lang: LanguageId, next: LanguageGoalState) {
-  const s = await getSettings();
-  await updateSettings({ goals: { ...(s.goals ?? {}), [lang]: next } });
+  await db.transaction("rw", db.settings, async () => {
+    const s = await getSettings();
+    await updateSettings({ goals: { ...(s.goals ?? {}), [lang]: next } });
+  });
 }
 
 /** First goal for a language — always free. */

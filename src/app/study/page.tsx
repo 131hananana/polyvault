@@ -74,6 +74,8 @@ function StudyInner() {
     buildQueue(def, settings.activeLanguage, settings.newCardsPerDay, deckId).then(setQueue);
   }, [ready, modeParam, settings.activeLanguage, settings.newCardsPerDay, deckId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // right after switching language, never show a lesson built for the previous one
+  if (isLesson && lesson && lesson.words[0] && lesson.words[0].languageId !== settings.activeLanguage) return null;
   if (isLesson && lesson) {
     if (lesson.words.length === 0) {
       return (

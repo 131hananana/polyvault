@@ -76,7 +76,6 @@ async function upgradeSeed(): Promise<void> {
     const goneCards = (await db.cards.toArray()).filter((c) => !offered.has(c.languageId)).map((c) => c.id);
     await db.decks.bulkDelete(goneDecks);
     await db.cards.bulkDelete(goneCards);
-    if (!offered.has(settings.activeLanguage)) settings.activeLanguage = LANGUAGES[0].id;
 
     const haveDecks = new Set(await db.decks.toCollection().primaryKeys());
     const haveCards = new Set(await db.cards.toCollection().primaryKeys());
@@ -88,7 +87,12 @@ async function upgradeSeed(): Promise<void> {
       await db.decks.update(d.id, d.id.includes("-goal-") ? { goal: d.goal, name: d.name, description: d.description } : { goal: d.goal });
     }
     await db.cards.bulkAdd(SEED_CARDS.filter((c) => !haveCards.has(c.id)));
-    await db.settings.put({ ...settings, id: "app", seedVersion: SEED_VERSION });
+    // update only what the upgrade owns, so a language picked meanwhile is kept
+    const live = (await db.settings.get("app")) ?? settings;
+    await db.settings.put({
+      ...live, id: "app", seedVersion: SEED_VERSION,
+      activeLanguage: offered.has(live.activeLanguage) ? live.activeLanguage : LANGUAGES[0].id,
+    });
   });
 }
 
@@ -98,9 +102,12 @@ async function upgradeSeed(): Promise<void> {
 export async function getSettings(): Promise<AppSettings> {
   return (await db.settings.get("app")) ?? DEFAULT_SETTINGS;
 }
+/** Read-merge-write inside one transaction, so quick successive changes never undo each other. */
 export async function updateSettings(patch: Partial<AppSettings>): Promise<void> {
-  const cur = await getSettings();
-  await db.settings.put({ ...cur, ...patch, id: "app" });
+  await db.transaction("rw", db.settings, async () => {
+    const cur = (await db.settings.get("app")) ?? DEFAULT_SETTINGS;
+    await db.settings.put({ ...cur, ...patch, id: "app" });
+  });
 }
 
 /* ------------------------------------------------------------

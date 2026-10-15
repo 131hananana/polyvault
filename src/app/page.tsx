@@ -60,9 +60,10 @@ export default function Home() {
   }, [settings.goals]);
 
   const [adding, setAdding] = useState(false);
-  const continueIn = (id: LanguageId) => { setLanguage(id); router.push("/study?mode=daily"); };
+  // save the language first, then open its Study page (goal, Level 1 and today's lesson)
+  const continueIn = async (id: LanguageId) => { await setLanguage(id); router.push("/study"); };
   // a new language goes to Study, which asks for the learning goal first
-  const startLanguage = (id: LanguageId) => { setAdding(false); setLanguage(id); router.push("/study"); };
+  const startLanguage = async (id: LanguageId) => { setAdding(false); await setLanguage(id); router.push("/study"); };
   const notStarted = LANGUAGES.filter((l) => !languages?.some((x) => x.id === l.id));
   const name = account.displayName.split(" ")[0];
 

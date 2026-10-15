@@ -95,26 +95,34 @@ function speakDevice(text: string, lang: string, rate = 1): Promise<boolean> {
     const synth = window.speechSynthesis;
     const u = new SpeechSynthesisUtterance(text);
     const voice = pickVoice(lang);
-    if (voice) { u.voice = voice; u.lang = voice.lang; } else { u.lang = (LANG_FALLBACK[lang] ?? [lang])[1] ?? lang; }
+    if (voice) u.voice = voice;
+    // with no matching voice loaded yet, keep the requested language and let the engine choose
+    u.lang = voice?.lang ?? lang;
     u.rate = rate;
-    // Some embedded browsers (e.g. in-app webviews) accept utterances but never play them.
+
     let started = false;
-    const stall = setTimeout(() => { if (!started) { synth.cancel(); done(false); } }, 2500);
+    let settled = false;
+    const done = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(silentCheck);
+      clearTimeout(fallback);
+      if (current === u) current = null;
+      resolve(ok);
+    };
+    // Report "no audio" only when nothing has happened for a while — and never cancel:
+    // slower phones can take a few seconds to start the first utterance.
+    const silentCheck = setTimeout(() => { if (!started && !synth.speaking) done(false); }, 6000);
     // never leave the button stuck if the engine drops the utterance mid-way
-    const fallback = setTimeout(() => done(started), 3000 + (text.length * 150) / rate);
-    const done = (ok: boolean) => { clearTimeout(stall); clearTimeout(fallback); if (current === u) current = null; resolve(ok); };
+    const fallback = setTimeout(() => done(started), 8000 + (text.length * 150) / rate);
     u.onstart = () => { started = true; };
     u.onend = () => done(true);
-    u.onerror = () => done(started);
+    u.onerror = (e) => done(started || e.error === "interrupted" || e.error === "canceled");
     current = u;
-    // cancel() immediately followed by speak() drops the new utterance in Chrome — only cancel when needed
-    if (synth.speaking || synth.pending) {
-      synth.cancel();
-      setTimeout(() => { synth.resume(); synth.speak(u); }, 80);
-    } else {
-      synth.resume();
-      synth.speak(u);
-    }
+    // speak inside the same tap: a delayed speak() is blocked on iPhone
+    if (synth.speaking || synth.pending) synth.cancel();
+    synth.resume();
+    synth.speak(u);
   });
 }
 

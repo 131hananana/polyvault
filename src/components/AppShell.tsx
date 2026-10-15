@@ -1,8 +1,8 @@
 "use client";
 
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import {
   Home, Layers, BarChart3, Settings, Search, NotebookPen,
@@ -13,7 +13,7 @@ import { db } from "@/lib/db";
 import { Avatar } from "./account/ProfileView";
 import { GoalOnboarding } from "./goals/Goals";
 import { goalStateFor } from "@/lib/goals";
-import { LANGUAGES, languageById } from "@/lib/types";
+import { LANGUAGES, LanguageId, languageById } from "@/lib/types";
 import { useApp } from "./Providers";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -52,8 +52,37 @@ function LanguageSwitcher({ compact = false }: { compact?: boolean }) {
   const { settings, setLanguage } = useApp();
   const [open, setOpen] = useState(false);
   const active = languageById(settings.activeLanguage);
+  const router = useRouter();
+  const pathname = usePathname();
+  const ref = useRef<HTMLDivElement>(null);
+
+  // a menu left open used to catch later taps (e.g. switching to German by accident)
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: Event) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("pointerdown", close, true);
+    document.addEventListener("keydown", esc);
+    window.addEventListener("scroll", close as EventListener, true);
+    return () => {
+      document.removeEventListener("pointerdown", close, true);
+      document.removeEventListener("keydown", esc);
+      window.removeEventListener("scroll", close as EventListener, true);
+    };
+  }, [open]);
+  useEffect(() => { setOpen(false); }, [pathname]);
+
+  const choose = async (id: LanguageId) => {
+    setOpen(false);
+    await setLanguage(id);
+    // pages that aren't about one language jump to the chosen language's Study page
+    if (!["/study", "/decks", "/stats", "/notebook", "/search", "/generate", "/import", "/cards"].some((p) => pathname.startsWith(p))) {
+      router.push("/study");
+    }
+  };
+
   return (
-    <div className="relative">
+    <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((o) => !o)}
         className="btn btn-outline !py-2 w-full justify-between"
@@ -81,7 +110,7 @@ function LanguageSwitcher({ compact = false }: { compact?: boolean }) {
                 <button
                   role="option"
                   aria-selected={l.id === active.id}
-                  onClick={() => { setLanguage(l.id); setOpen(false); }}
+                  onClick={() => choose(l.id)}
                   className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-left transition-colors
                     ${l.id === active.id ? "bg-accent-soft text-accent font-semibold" : "hover:bg-surface-2 text-ink"}`}
                 >

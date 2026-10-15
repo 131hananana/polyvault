@@ -9,15 +9,16 @@ import { useLiveQuery } from "dexie-react-hooks";
 interface AppContextValue {
   settings: AppSettings;
   ready: boolean;
-  setLanguage: (id: LanguageId) => void;
-  patchSettings: (p: Partial<AppSettings>) => void;
+  /** resolves once the new language is saved, so callers can navigate after it */
+  setLanguage: (id: LanguageId) => Promise<void>;
+  patchSettings: (p: Partial<AppSettings>) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue>({
   settings: DEFAULT_SETTINGS,
   ready: false,
-  setLanguage: () => {},
-  patchSettings: () => {},
+  setLanguage: async () => {},
+  patchSettings: async () => {},
 });
 
 export const useApp = () => useContext(AppContext);
@@ -30,6 +31,12 @@ function AppProvider({ children }: { children: ReactNode }) {
     // register the service worker for offline + install
     if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
       navigator.serviceWorker.register("/sw.js").catch(() => {});
+      // when a new deploy's service worker takes over, reload once so old and new code never mix
+      const hadController = Boolean(navigator.serviceWorker.controller);
+      let reloaded = false;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (hadController && !reloaded) { reloaded = true; window.location.reload(); }
+      });
     }
   }, []);
 
@@ -41,8 +48,8 @@ function AppProvider({ children }: { children: ReactNode }) {
     document.documentElement.dataset.fontsize = settings.fontSize;
   }, [settings.fontSize]);
 
-  const setLanguage = useCallback((id: LanguageId) => { updateSettings({ activeLanguage: id }); }, []);
-  const patchSettings = useCallback((p: Partial<AppSettings>) => { updateSettings(p); }, []);
+  const setLanguage = useCallback((id: LanguageId) => updateSettings({ activeLanguage: id }), []);
+  const patchSettings = useCallback((p: Partial<AppSettings>) => updateSettings(p), []);
 
   return (
     <AppContext.Provider value={{ settings, ready: ready && stored !== null, setLanguage, patchSettings }}>
